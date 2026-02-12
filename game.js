@@ -28,7 +28,9 @@ let doors;   // Nouveau groupe pour les portes
 let enemies;
 let enemyBullets; // Nouveau groupe pour les tirs ennemis
 let lastFired = 0;
-const FIRE_RATE = 250; // Délai entre les tirs en ms
+let fireRate = 250; // Délai entre les tirs en ms (Variable)
+let playerDamage = 1; // Dégâts du joueur
+let projectileCount = 1; // Nombre de projectiles
 let playerSpeed = 200;
 const DEFAULT_SPEED = 200;
 const BULLET_SPEED = 400;
@@ -54,7 +56,9 @@ let shopItems; // Groupe pour les objets du magasin
 let shopTexts; // Groupe pour les prix
 let level = 1;
 let levelText;
+let statsText; // Texte pour les stats
 let stairs;
+let treasureChest; // Groupe pour le coffre
 
 function preload() {
     // Création de textures placeholder dynamiques (Pixel Art simulé)
@@ -186,6 +190,20 @@ function preload() {
     bg.fillStyle(0x880000, 1);
     bg.fillRect(0, 0, 40, 40);
     bg.generateTexture('door_boss', 40, 40);
+
+    // 20. Porte Trésor (Orange/Or)
+    bg.clear();
+    bg.fillStyle(0xffaa00, 1);
+    bg.fillRect(0, 0, 40, 40);
+    bg.generateTexture('door_treasure', 40, 40);
+
+    // 21. Coffre au trésor (Carré Marron avec serrure dorée)
+    bg.clear();
+    bg.fillStyle(0x8b4513, 1);
+    bg.fillRect(0, 0, 32, 32);
+    bg.fillStyle(0xffd700, 1); // Serrure
+    bg.fillRect(12, 10, 8, 8);
+    bg.generateTexture('chest', 32, 32);
 }
 
 function create() {
@@ -195,6 +213,7 @@ function create() {
     enemies = this.physics.add.group();
     pickups = this.physics.add.group();
     stairs = this.physics.add.staticGroup();
+    treasureChest = this.physics.add.staticGroup();
     shopItems = this.physics.add.staticGroup();
     shopTexts = this.add.group();
     enemyBullets = this.physics.add.group({
@@ -234,6 +253,16 @@ function create() {
     // --- UI Santé ---
     heartsGroup = this.add.group();
     updateHealthUI(this);
+
+    // --- UI Stats ---
+    statsText = this.add.text(20, 220, '', {
+        fontSize: '16px',
+        fill: '#cccccc',
+        lineSpacing: 5
+    });
+    statsText.setScrollFactor(0);
+    statsText.setDepth(50);
+    updateStatsUI();
 
     // --- Game Over Screen ---
     gameOverText = this.add.text(400, 300, 'GAME OVER\nCliquer pour recommencer', {
@@ -295,7 +324,7 @@ function create() {
         bullet.destroy();
         
         // Gestion des PV de l'ennemi
-        let currentHp = enemy.getData('hp') - 1;
+        let currentHp = enemy.getData('hp') - playerDamage;
         enemy.setData('hp', currentHp);
 
         if (enemy.getData('type') === 'boss') {
@@ -326,7 +355,7 @@ function create() {
             
             if (dungeon[roomY][roomX].type === 'boss') {
                 stairs.create(400, 300, 'stairs');
-                spawnRoomReward(this, 400, 360); // Récompense décalée
+                treasureChest.create(400, 200, 'chest'); // Coffre de récompense
             } else {
                 spawnRoomReward(this, 400, 300); // Apparition potentielle d'un objet
             }
@@ -370,6 +399,11 @@ function create() {
         nextLevel(this);
     });
 
+    // Collision Joueur -> Coffre
+    this.physics.add.overlap(player, treasureChest, (player, chest) => {
+        openTreasureChest(this, chest);
+    });
+
     // Collision Joueur -> Porte (Changement de salle)
     this.physics.add.overlap(player, doors, (player, door) => {
         if (!isRoomLocked) {
@@ -384,7 +418,7 @@ function generateDungeon() {
         dungeon[y] = [];
         for (let x = 0; x < 10; x++) {
             // Chaque case contient maintenant un objet d'état
-            dungeon[y][x] = { active: false, visited: false, cleared: false, type: 'normal', pickups: [], shopData: null };
+            dungeon[y][x] = { active: false, visited: false, cleared: false, type: 'normal', pickups: [], shopData: null, treasureOpen: false };
         }
     }
     
@@ -443,6 +477,20 @@ function generateDungeon() {
         }
         attempts++;
     }
+
+    // Définir la salle du Trésor
+    let treasurePlaced = false;
+    attempts = 0;
+    while (!treasurePlaced && attempts < 100) {
+        let rx = Phaser.Math.Between(0, 9);
+        let ry = Phaser.Math.Between(0, 9);
+        let room = dungeon[ry][rx];
+        if (room.active && room.type === 'normal' && (rx !== 5 || ry !== 5)) {
+             room.type = 'treasure';
+             treasurePlaced = true;
+        }
+        attempts++;
+    }
 }
 
 function loadRoom(scene) {
@@ -457,6 +505,7 @@ function loadRoom(scene) {
     shopItems.clear(true, true);
     shopTexts.clear(true, true);
     stairs.clear(true, true);
+    treasureChest.clear(true, true);
 
     // Restaurer les objets persistants de la salle
     if (dungeon[roomY][roomX].pickups) {
@@ -468,6 +517,14 @@ function loadRoom(scene) {
         spawnShop(scene);
         dungeon[roomY][roomX].cleared = true; // Le shop est toujours sûr
     }
+
+    // Restaurer le coffre si c'est une salle trésor
+    if (dungeon[roomY][roomX].type === 'treasure') {
+        dungeon[roomY][roomX].cleared = true; // Salle sûre
+        if (!dungeon[roomY][roomX].treasureOpen) {
+            treasureChest.create(400, 300, 'chest');
+        }
+    }
     
     // Déterminer si la salle doit être verrouillée (si elle n'est pas nettoyée)
     isRoomLocked = !dungeon[roomY][roomX].cleared;
@@ -475,6 +532,9 @@ function loadRoom(scene) {
     // Faire réapparaître l'escalier si la salle du boss est nettoyée
     if (dungeon[roomY][roomX].type === 'boss' && dungeon[roomY][roomX].cleared) {
         stairs.create(400, 300, 'stairs');
+        if (!dungeon[roomY][roomX].treasureOpen) {
+            treasureChest.create(400, 200, 'chest');
+        }
     }
 
     // Marquer la salle comme visitée et mettre à jour la minimap
@@ -607,6 +667,7 @@ function drawMinimap() {
                     let color = 0xaaaaaa; // Normal (Gris)
                     if (room.type === 'boss') color = 0xff0000; // Boss (Rouge)
                     else if (room.type === 'shop') color = 0xffff00; // Shop (Jaune)
+                    else if (room.type === 'treasure') color = 0xffaa00; // Trésor (Orange)
 
                     // Assombrir si non visité
                     if (!room.visited) {
@@ -665,7 +726,7 @@ function update(time, delta) {
 
         if (fired) {
             fireBullet(player.x, player.y, velocity);
-            lastFired = time + FIRE_RATE;
+            lastFired = time + fireRate;
         }
     }
 
@@ -816,6 +877,9 @@ function restartGame(scene) {
     scene.physics.resume();
     maxHealth = DEFAULT_MAX_HEALTH;
     playerSpeed = DEFAULT_SPEED;
+    playerDamage = 1;
+    fireRate = 250;
+    projectileCount = 1;
     currentHealth = maxHealth;
     level = 1;
     levelText.setText('Étage: 1');
@@ -823,15 +887,31 @@ function restartGame(scene) {
     coinText.setText('Pièces: 0');
     updateHealthUI(scene);
     generateDungeon(); // Nouveau donjon
+    updateStatsUI();
     player.setPosition(400, 300); // Retour au centre
     loadRoom(scene);
 }
 
 function fireBullet(x, y, velocity) {
-    let bullet = bullets.get();
-    if (bullet) {
-        bullet.setTexture('bullet'); // S'assurer que la texture est bien assignée
-        bullet.fire(x, y, velocity);
+    // Calcul de l'angle de base
+    let baseAngle = Math.atan2(velocity.y, velocity.x);
+    let speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
+
+    // Tirer plusieurs projectiles si nécessaire
+    for (let i = 0; i < projectileCount; i++) {
+        let bullet = bullets.get();
+        if (bullet) {
+            // Répartition des angles : centré autour de l'angle de base
+            // Si 1 proj: offset 0. Si 3 proj: -0.2, 0, +0.2 radians
+            let offset = (i - (projectileCount - 1) / 2) * 0.15; 
+            let angle = baseAngle + offset;
+            
+            let vx = Math.cos(angle) * speed;
+            let vy = Math.sin(angle) * speed;
+
+            bullet.setTexture('bullet');
+            bullet.fire(x, y, { x: vx, y: vy });
+        }
     }
 }
 
@@ -992,6 +1072,59 @@ function buyItem(scene, item) {
     }
 }
 
+function openTreasureChest(scene, chest) {
+    // Empêcher d'ouvrir plusieurs fois (même si la collision le gère, sécurité)
+    if (dungeon[roomY][roomX].treasureOpen) return;
+
+    dungeon[roomY][roomX].treasureOpen = true;
+    chest.destroy();
+
+    // Liste des améliorations possibles
+    const upgrades = [
+        { name: "Dégâts +1", apply: () => playerDamage++ },
+        { name: "Vitesse d'attaque +", apply: () => fireRate = Math.max(50, fireRate - 30) }, // Min 50ms
+        { name: "Vitesse +", apply: () => playerSpeed += 20 },
+        { name: "Santé Max +1", apply: () => { maxHealth++; currentHealth = maxHealth; updateHealthUI(scene); } },
+        { name: "Projectile +1", apply: () => projectileCount++ }
+    ];
+
+    // Choix aléatoire
+    let upgrade = upgrades[Phaser.Math.Between(0, upgrades.length - 1)];
+    upgrade.apply();
+
+    // Mise à jour UI
+    updateStatsUI();
+
+    // Texte flottant
+    let text = scene.add.text(player.x, player.y - 40, upgrade.name, {
+        fontSize: '20px',
+        fill: '#00ff00',
+        stroke: '#000000',
+        strokeThickness: 4
+    });
+    
+    scene.tweens.add({
+        targets: text,
+        y: player.y - 80,
+        alpha: 0,
+        duration: 2000,
+        onComplete: () => text.destroy()
+    });
+}
+
+function updateStatsUI() {
+    // Calcul du DPS approximatif pour info (Dmg * (1000/Rate) * Count)
+    // let dps = (playerDamage * (1000 / fireRate) * projectileCount).toFixed(1);
+    
+    statsText.setText([
+        'STATS:',
+        'Dégâts: ' + playerDamage,
+        'Cadence: ' + fireRate + 'ms',
+        'Vitesse: ' + playerSpeed,
+        'Tirs: ' + projectileCount
+    ]);
+}
+
 function getDoorTexture(direction) {
     let tx = roomX;
     let ty = roomY;
@@ -1004,6 +1137,7 @@ function getDoorTexture(direction) {
     let type = dungeon[ty][tx].type;
     if (type === 'shop') return 'door_shop';
     if (type === 'boss') return 'door_boss';
+    if (type === 'treasure') return 'door_treasure';
     return 'door';
 }
 
