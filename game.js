@@ -63,14 +63,13 @@ let treasureChest; // Groupe pour le coffre
 function preload() {
     // Création de textures placeholder dynamiques (Pixel Art simulé)
     
-    // 1. Joueur (Carré Bleu)
+    // 1. Joueur : Image externe (player.png doit être dans le dossier du jeu)
+    this.load.image('player', 'player.png');
+
+    // Outil graphique pour les autres textures générées
     let bg = this.make.graphics({ x: 0, y: 0 });
-    bg.fillStyle(0x3399ff, 1);
-    bg.fillRect(0, 0, 32, 32);
-    bg.generateTexture('player', 32, 32);
 
     // 2. Ennemi (Carré Rouge)
-    bg.clear();
     bg.fillStyle(0xff3333, 1);
     bg.fillRect(0, 0, 32, 32);
     bg.generateTexture('enemy', 32, 32);
@@ -286,6 +285,10 @@ function create() {
 
     // --- Joueur ---
     player = this.physics.add.sprite(400, 300, 'player');
+    
+    // Ajustement de la hitbox : on garde un cœur de 40x40 (20*2) pour éviter de bloquer
+    player.body.setSize(20, 20);
+    
     player.setCollideWorldBounds(true);
     player.setDepth(10); // Le joueur est au-dessus des portes
 
