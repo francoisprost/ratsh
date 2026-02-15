@@ -63,8 +63,8 @@ let treasureChest; // Groupe pour le coffre
 function preload() {
     // Création de textures placeholder dynamiques (Pixel Art simulé)
     
-    // 1. Joueur : Image externe (player.png doit être dans le dossier du jeu)
-    this.load.image('player', 'player.png');
+    // 1. Joueur : Spritesheet externe (player_sheet.png doit être dans le dossier du jeu)
+    this.load.spritesheet('player', 'player_sheet.png', { frameWidth: 64, frameHeight: 64 });
 
     // Outil graphique pour les autres textures générées
     let bg = this.make.graphics({ x: 0, y: 0 });
@@ -289,8 +289,45 @@ function create() {
     // Ajustement de la hitbox : on garde un cœur de 40x40 (20*2) pour éviter de bloquer
     player.body.setSize(20, 20);
     
+    // Centre la hitbox de 20x20 dans le sprite de 64x64
+    player.body.setOffset(22, 22);
+    
     player.setCollideWorldBounds(true);
     player.setDepth(10); // Le joueur est au-dessus des portes
+    player.lastDirection = 'down'; // Pour l'animation immobile
+
+    // --- Création des animations du joueur ---
+    // Marche
+    this.anims.create({
+        key: 'walk-down',
+        frames: this.anims.generateFrameNumbers('player', { start: 0, end: 3 }), // Ligne 1 de la spritesheet
+        frameRate: 8,
+        repeat: -1
+    });
+    this.anims.create({
+        key: 'walk-left',
+        frames: this.anims.generateFrameNumbers('player', { start: 4, end: 7 }), // Ligne 2
+        frameRate: 8,
+        repeat: -1
+    });
+    this.anims.create({
+        key: 'walk-right',
+        frames: this.anims.generateFrameNumbers('player', { start: 8, end: 11 }), // Ligne 3
+        frameRate: 8,
+        repeat: -1
+    });
+    this.anims.create({
+        key: 'walk-up',
+        frames: this.anims.generateFrameNumbers('player', { start: 12, end: 15 }), // Ligne 4
+        frameRate: 8,
+        repeat: -1
+    });
+
+    // Immobile (idle) - On utilise la 2ème frame de chaque animation de marche
+    this.anims.create({ key: 'idle-down', frames: [{ key: 'player', frame: 1 }] });
+    this.anims.create({ key: 'idle-left', frames: [{ key: 'player', frame: 5 }] });
+    this.anims.create({ key: 'idle-right', frames: [{ key: 'player', frame: 9 }] });
+    this.anims.create({ key: 'idle-up', frames: [{ key: 'player', frame: 13 }] });
 
     // --- Chargement de la première salle ---
     loadRoom(this);
@@ -705,8 +742,45 @@ function update(time, delta) {
         player.setVelocityY(playerSpeed);
     }
 
-    // Normaliser la vitesse en diagonale (pour ne pas aller plus vite)
-    player.body.velocity.normalize().scale(playerSpeed);
+    // Normaliser la vitesse pour ne pas aller plus vite en diagonale (et éviter l'erreur sur vecteur nul)
+    if (player.body.velocity.x !== 0 || player.body.velocity.y !== 0) {
+        player.body.velocity.normalize().scale(playerSpeed);
+    }
+
+    // Déterminer la direction du tir (prioritaire sur le mouvement)
+    let shootDirection = null;
+    if (cursors.left.isDown) shootDirection = 'left';
+    else if (cursors.right.isDown) shootDirection = 'right';
+    else if (cursors.up.isDown) shootDirection = 'up';
+    else if (cursors.down.isDown) shootDirection = 'down';
+
+    // --- Animations du joueur ---
+    if (shootDirection) {
+        player.lastDirection = shootDirection;
+        // Si on bouge en tirant, on joue l'animation de marche (strafing)
+        if (player.body.velocity.x !== 0 || player.body.velocity.y !== 0) {
+            player.anims.play('walk-' + shootDirection, true);
+        } else {
+            player.anims.play('idle-' + shootDirection, true);
+        }
+    } else {
+        // Comportement normal (regarde dans la direction du mouvement)
+        if (player.body.velocity.x < 0) { // Gauche
+            player.anims.play('walk-left', true);
+            player.lastDirection = 'left';
+        } else if (player.body.velocity.x > 0) { // Droite
+            player.anims.play('walk-right', true);
+            player.lastDirection = 'right';
+        } else if (player.body.velocity.y < 0) { // Haut
+            player.anims.play('walk-up', true);
+            player.lastDirection = 'up';
+        } else if (player.body.velocity.y > 0) { // Bas
+            player.anims.play('walk-down', true);
+            player.lastDirection = 'down';
+        } else { // Immobile
+            player.anims.play('idle-' + player.lastDirection, true);
+        }
+    }
 
     // --- Tir (Twin-stick shooter style) ---
     if (time > lastFired) {
