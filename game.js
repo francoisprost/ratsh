@@ -1,7 +1,25 @@
+const MainMenuScene = {
+    key: 'MainMenuScene',
+    preload: preload,
+    create: createMainMenu
+};
+
+const GameScene = {
+    key: 'GameScene',
+    create: create,
+    update: update
+};
+
+const UIScene = {
+    key: 'UIScene',
+    create: createUI,
+    update: updateUI
+};
+
 const config = {
     type: Phaser.AUTO,
     width: 800,
-    height: 600,
+    height: 700, // On augmente la hauteur pour inclure le bandeau
     backgroundColor: '#1a1a1a', // Fond gris foncé (sol de donjon)
     physics: {
         default: 'arcade',
@@ -10,11 +28,7 @@ const config = {
             debug: false
         }
     },
-    scene: {
-        preload: preload,
-        create: create,
-        update: update
-    }
+    scene: [MainMenuScene, GameScene, UIScene] // Menu en premier
 };
 
 const game = new Phaser.Game(config);
@@ -56,9 +70,47 @@ let shopItems; // Groupe pour les objets du magasin
 let shopTexts; // Groupe pour les prix
 let level = 1;
 let levelText;
+let score = 0;
+let scoreText;
 let statsText; // Texte pour les stats
 let stairs;
 let treasureChest; // Groupe pour le coffre
+
+function createMainMenu() {
+    this.cameras.main.setBackgroundColor('#000000');
+
+    // Titre
+    this.add.text(400, 200, 'RATSH', {
+        fontSize: '100px',
+        fill: '#ff0000',
+        fontStyle: 'bold',
+        stroke: '#ffffff',
+        strokeThickness: 2
+    }).setOrigin(0.5);
+
+    // Instructions
+    this.add.text(400, 350, 'ZQSD pour bouger\nFlèches pour tirer', {
+        fontSize: '24px',
+        fill: '#cccccc',
+        align: 'center'
+    }).setOrigin(0.5);
+
+    // Bouton Jouer
+    let playText = this.add.text(400, 500, 'CLIQUER POUR JOUER', {
+        fontSize: '32px',
+        fill: '#ffffff',
+        backgroundColor: '#333333',
+        padding: { x: 20, y: 10 }
+    }).setOrigin(0.5);
+
+    playText.setInteractive({ useHandCursor: true });
+    playText.on('pointerover', () => playText.setStyle({ fill: '#ffff00' }));
+    playText.on('pointerout', () => playText.setStyle({ fill: '#ffffff' }));
+
+    this.input.on('pointerdown', () => {
+        this.scene.start('GameScene');
+    });
+}
 
 function preload() {
     // Création de textures placeholder dynamiques (Pixel Art simulé)
@@ -226,42 +278,13 @@ function create() {
         runChildUpdate: true
     });
     
-    minimapGraphics = this.add.graphics();
-    minimapGraphics.setDepth(20); // Au-dessus du joueur (qui est à 10)
+    // Configuration de la caméra de JEU (Zone inférieure)
+    // Viewport: x=0, y=100, width=800, height=600
+    this.cameras.main.setViewport(0, 100, 800, 600);
+    this.cameras.main.setBackgroundColor('#1a1a1a');
 
-    bossHealthBar = this.add.graphics();
-    bossHealthBar.setDepth(50);
-    bossHealthBar.setScrollFactor(0);
-
-    // --- UI Pièces ---
-    coinText = this.add.text(650, 20, 'Pièces: 0', {
-        fontSize: '24px',
-        fill: '#ffd700'
-    });
-    coinText.setScrollFactor(0);
-    coinText.setDepth(50);
-
-    // --- UI Niveau ---
-    levelText = this.add.text(650, 50, 'Étage: 1', {
-        fontSize: '24px',
-        fill: '#ffffff'
-    });
-    levelText.setScrollFactor(0);
-    levelText.setDepth(50);
-
-    // --- UI Santé ---
-    heartsGroup = this.add.group();
-    updateHealthUI(this);
-
-    // --- UI Stats ---
-    statsText = this.add.text(20, 220, '', {
-        fontSize: '16px',
-        fill: '#cccccc',
-        lineSpacing: 5
-    });
-    statsText.setScrollFactor(0);
-    statsText.setDepth(50);
-    updateStatsUI();
+    // Lancer la scène d'interface en parallèle
+    this.scene.launch('UIScene');
 
     // --- Game Over Screen ---
     gameOverText = this.add.text(400, 300, 'GAME OVER\nCliquer pour recommencer', {
@@ -368,7 +391,7 @@ function create() {
         enemy.setData('hp', currentHp);
 
         if (enemy.getData('type') === 'boss') {
-            updateBossHealthBar(this, currentHp, enemy.getData('maxHp'));
+            updateBossHealthBar(currentHp, enemy.getData('maxHp'));
         }
 
         // Effet de flash blanc
@@ -382,6 +405,11 @@ function create() {
         if (currentHp <= 0) {
             enemy.destroy();
             if (enemy.getData('type') === 'boss') bossHealthBar.clear();
+            
+            // Mise à jour du score
+            let points = enemy.getData('type') === 'boss' ? 100 : 10;
+            score += points;
+            scoreText.setText('Score: ' + score);
         }
 
         // Vérification de fin de salle (si l'ennemi vient de mourir)
@@ -408,7 +436,7 @@ function create() {
         if (isGameOver) return;
         const time = this.time.now;
         if (time > lastDamageTime + DAMAGE_COOLDOWN) {
-            takeDamage(this);
+            takeDamage(this); // On passe 'this' (GameScene) pour le shake
             lastDamageTime = time;
         }
     });
@@ -450,6 +478,56 @@ function create() {
             changeRoom(door.name, this);
         }
     });
+}
+
+function createUI() {
+    // Configuration de la caméra UI (Bandeau supérieur)
+    this.cameras.main.setViewport(0, 0, 800, 100);
+    this.cameras.main.setBackgroundColor('#000000'); // Fond noir pour le bandeau
+
+    // --- Minimap (Gauche) ---
+    minimapGraphics = this.add.graphics();
+    // Pas besoin de setScrollFactor(0) car la caméra UI ne bouge pas
+
+    // --- UI Santé (À côté de la minimap) ---
+    heartsGroup = this.add.group();
+    updateHealthUI(); // Utilise le groupe global
+
+    // --- UI Stats (Centre) ---
+    statsText = this.add.text(300, 10, '', {
+        fontSize: '14px',
+        fill: '#cccccc',
+        lineSpacing: 4
+    });
+    updateStatsUI();
+
+    // --- UI Score, Pièces et Niveau (Droite) ---
+    scoreText = this.add.text(600, 15, 'Score: 0', {
+        fontSize: '20px',
+        fill: '#ffffff'
+    });
+
+    coinText = this.add.text(600, 40, 'Pièces: 0', {
+        fontSize: '20px',
+        fill: '#ffd700'
+    });
+
+    levelText = this.add.text(600, 65, 'Étage: 1', {
+        fontSize: '20px',
+        fill: '#ffffff'
+    });
+
+    // --- Boss Health Bar (Superposée au jeu ou dans l'UI ?) ---
+    // On la met dans l'UI pour qu'elle soit toujours visible
+    bossHealthBar = this.add.graphics();
+}
+
+function updateUI() {
+    // Mise à jour continue de l'interface si nécessaire
+    // La plupart des mises à jour sont faites par événements (collecte pièce, dégâts),
+    // mais la minimap doit être redessinée si on change de salle.
+    // On peut appeler drawMinimap ici pour être sûr.
+    drawMinimap();
 }
 
 function generateDungeon() {
@@ -540,7 +618,7 @@ function loadRoom(scene) {
     enemies.clear(true, true);
     bullets.clear(true, true); // Supprimer les balles en vol
     enemyBullets.clear(true, true); // Supprimer les balles ennemies
-    bossHealthBar.clear();
+    if(bossHealthBar) bossHealthBar.clear();
     pickups.clear(true, true); // Nettoyer les objets non ramassés
     shopItems.clear(true, true);
     shopTexts.clear(true, true);
@@ -579,7 +657,7 @@ function loadRoom(scene) {
 
     // Marquer la salle comme visitée et mettre à jour la minimap
     dungeon[roomY][roomX].visited = true;
-    drawMinimap();
+    // drawMinimap est appelé dans updateUI maintenant
 
     // Vérifier les voisins (pour placer les portes)
     let hasNorth = roomY > 0 && dungeon[roomY - 1][roomX].active;
@@ -649,7 +727,7 @@ function loadRoom(scene) {
             boss.setData('maxHp', 20 + (level * 5));
             boss.setData('nextFire', 0);
             boss.setData('activeAt', scene.time.now + 1000); // Le boss attend 1s
-            updateBossHealthBar(scene, 20, 20);
+            updateBossHealthBar(20, 20);
         } else {
             // --- SPAWN ENNEMIS NORMAUX ---
             let enemyCount = Phaser.Math.Between(1, 4);
@@ -676,14 +754,14 @@ function loadRoom(scene) {
 function drawMinimap() {
     minimapGraphics.clear();
     
-    const size = 12;   // Taille d'une case minimap
+    const size = 8;    // Taille réduite pour tenir dans le bandeau
     const padding = 2; // Espace entre les cases
-    const startX = 20; // Position X sur l'écran
-    const startY = 20; // Position Y sur l'écran
+    const startX = 10; // Position X dans le bandeau
+    const startY = 5;  // Position Y dans le bandeau
 
-    // Fond semi-transparent pour la minimap
-    minimapGraphics.fillStyle(0x000000, 0.5);
-    minimapGraphics.fillRect(startX - 5, startY - 5, (size + padding) * 10 + 10, (size + padding) * 10 + 10);
+    // Cadre pour la minimap
+    minimapGraphics.lineStyle(1, 0x444444);
+    minimapGraphics.strokeRect(startX - 2, startY - 2, (size + padding) * 10 + 4, (size + padding) * 10 + 4);
 
     for (let y = 0; y < 10; y++) {
         for (let x = 0; x < 10; x++) {
@@ -886,7 +964,7 @@ function changeRoom(direction, scene) {
 
 function takeDamage(scene) {
     currentHealth--;
-    updateHealthUI(scene);
+    updateHealthUI();
     scene.cameras.main.shake(200, 0.02);
     
     // Effet visuel de dégâts (clignotement)
@@ -903,39 +981,37 @@ function takeDamage(scene) {
     }
 }
 
-function updateHealthUI(scene) {
+function updateHealthUI() {
     heartsGroup.clear(true, true);
     for (let i = 0; i < maxHealth; i++) {
-        let x = 30 + i * 25;
-        let y = 180; // Positionné sous la minimap
+        let x = 140 + i * 25; // Positionné à droite de la minimap
+        let y = 25; 
         let texture = i < currentHealth ? 'heart' : 'heart_empty';
-        let heart = scene.add.image(x, y, texture);
-        heart.setScrollFactor(0); // L'UI ne bouge pas avec la caméra
-        heart.setDepth(50);
-        heartsGroup.add(heart);
+        // On crée l'image directement dans le groupe (qui appartient à la scène UI)
+        heartsGroup.create(x, y, texture);
     }
 }
 
-function updateBossHealthBar(scene, current, max) {
+function updateBossHealthBar(current, max) {
     bossHealthBar.clear();
     if (current <= 0) return;
 
-    const width = 400;
-    const height = 20;
-    const x = 200; // Centré (800 - 400) / 2
-    const y = 550; // Bas de l'écran
+    const width = 300;
+    const height = 10;
+    const x = 250; // Centré dans le bandeau
+    const y = 80;  // Bas du bandeau
 
     // Fond
-    bossHealthBar.fillStyle(0x000000, 0.8);
+    bossHealthBar.fillStyle(0x333333, 1);
     bossHealthBar.fillRect(x, y, width, height);
 
     // Barre de vie
     const percent = current / max;
     bossHealthBar.fillStyle(0xff0000, 1);
-    bossHealthBar.fillRect(x + 2, y + 2, (width - 4) * percent, height - 4);
+    bossHealthBar.fillRect(x, y, width * percent, height);
     
     // Bordure
-    bossHealthBar.lineStyle(2, 0xffffff, 1);
+    bossHealthBar.lineStyle(1, 0xffffff, 1);
     bossHealthBar.strokeRect(x, y, width, height);
 }
 
@@ -943,6 +1019,7 @@ function triggerGameOver(scene) {
     isGameOver = true;
     scene.physics.pause();
     player.setTint(0xff0000); // Joueur devient rouge
+    gameOverText.setText('GAME OVER\nScore: ' + score + '\nCliquer pour recommencer');
     gameOverText.setVisible(true);
 }
 
@@ -960,9 +1037,11 @@ function restartGame(scene) {
     currentHealth = maxHealth;
     level = 1;
     levelText.setText('Étage: 1');
+    score = 0;
+    scoreText.setText('Score: 0');
     coins = 0;
     coinText.setText('Pièces: 0');
-    updateHealthUI(scene);
+    updateHealthUI();
     generateDungeon(); // Nouveau donjon
     updateStatsUI();
     player.setPosition(400, 300); // Retour au centre
@@ -1058,12 +1137,14 @@ function collectPickup(scene, pickup) {
     
     if (type === 'coin') {
         coins++;
+        score += 5;
+        scoreText.setText('Score: ' + score);
         coinText.setText('Pièces: ' + coins);
         collected = true;
     } else if (type === 'pickup_heart') {
         if (currentHealth < maxHealth) {
             currentHealth++;
-            updateHealthUI(scene);
+            updateHealthUI();
             collected = true;
         }
     }
@@ -1134,7 +1215,7 @@ function buyItem(scene, item) {
         if (bought) {
             coins -= price;
             coinText.setText('Pièces: ' + coins);
-            updateHealthUI(scene);
+            updateHealthUI();
             
             // Retirer l'objet des données de la salle pour qu'il ne réapparaisse pas
             let shopData = dungeon[roomY][roomX].shopData;
@@ -1161,7 +1242,7 @@ function openTreasureChest(scene, chest) {
         { name: "Dégâts +1", apply: () => playerDamage++ },
         { name: "Vitesse d'attaque +", apply: () => fireRate = Math.max(50, fireRate - 30) }, // Min 50ms
         { name: "Vitesse +", apply: () => playerSpeed += 20 },
-        { name: "Santé Max +1", apply: () => { maxHealth++; currentHealth = maxHealth; updateHealthUI(scene); } },
+        { name: "Santé Max +1", apply: () => { maxHealth++; currentHealth = maxHealth; updateHealthUI(); } },
         { name: "Projectile +1", apply: () => projectileCount++ }
     ];
 
@@ -1194,11 +1275,9 @@ function updateStatsUI() {
     // let dps = (playerDamage * (1000 / fireRate) * projectileCount).toFixed(1);
     
     statsText.setText([
-        'STATS:',
-        'Dégâts: ' + playerDamage,
+        'Dégâts: ' + playerDamage + '  |  Tirs: ' + projectileCount,
         'Cadence: ' + fireRate + 'ms',
-        'Vitesse: ' + playerSpeed,
-        'Tirs: ' + projectileCount
+        'Vitesse: ' + playerSpeed
     ]);
 }
 
