@@ -88,6 +88,61 @@ function createMainMenu() {
         strokeThickness: 2
     }).setOrigin(0.5);
 
+    // --- Animation de fond ---
+
+    // On crée les animations de marche nécessaires pour le menu
+    this.anims.create({
+        key: 'walk-left',
+        frames: this.anims.generateFrameNumbers('player', { start: 4, end: 7 }),
+        frameRate: 8,
+        repeat: -1
+    });
+    this.anims.create({
+        key: 'walk-right',
+        frames: this.anims.generateFrameNumbers('player', { start: 8, end: 11 }),
+        frameRate: 8,
+        repeat: -1
+    });
+
+    const spawnWalkingRat = () => {
+        // Position Y aléatoire pour l'effet de profondeur
+        const y = Phaser.Math.Between(300, 650);
+        const direction = Phaser.Math.RND.pick(['left', 'right']);
+
+        let startX, endX, animKey;
+        if (direction === 'right') {
+            startX = -64; // Part de la gauche de l'écran
+            endX = 864;   // Traverse vers la droite
+            animKey = 'walk-right';
+        } else {
+            startX = 864; // Part de la droite
+            endX = -64;   // Traverse vers la gauche
+            animKey = 'walk-left';
+        }
+
+        const rat = this.add.sprite(startX, y, 'player');
+
+        // Calcule l'échelle et la vitesse en fonction de la position Y
+        const scale = Phaser.Math.Linear(0.75, 2.0, (y - 300) / (650 - 300));
+        const duration = Phaser.Math.Linear(6000, 3000, (scale - 0.75) / (2.0 - 0.75));
+
+        rat.setScale(scale).play(animKey).setDepth(y); // Le setDepth assure que les rats du bas passent devant
+
+        this.tweens.add({
+            targets: rat,
+            x: endX,
+            duration: duration,
+            ease: 'Linear',
+            onComplete: () => rat.destroy()
+        });
+
+        // Planifie la prochaine apparition à un intervalle irrégulier
+        this.time.delayedCall(Phaser.Math.Between(4000, 8000), spawnWalkingRat, [], this);
+    }
+
+    // Lance la première animation
+    spawnWalkingRat();
+
     // Instructions
     this.add.text(400, 350, 'ZQSD pour bouger\nFlèches pour tirer', {
         fontSize: '24px',
@@ -107,7 +162,7 @@ function createMainMenu() {
     playText.on('pointerover', () => playText.setStyle({ fill: '#ffff00' }));
     playText.on('pointerout', () => playText.setStyle({ fill: '#ffffff' }));
 
-    this.input.on('pointerdown', () => {
+    playText.on('pointerdown', () => {
         this.scene.start('GameScene');
     });
 }
@@ -754,14 +809,17 @@ function loadRoom(scene) {
 function drawMinimap() {
     minimapGraphics.clear();
     
-    const size = 8;    // Taille réduite pour tenir dans le bandeau
+    const size = 10;   // Taille un peu plus grande pour une meilleure lisibilité
     const padding = 2; // Espace entre les cases
-    const startX = 10; // Position X dans le bandeau
-    const startY = 5;  // Position Y dans le bandeau
+    const cellSize = size + padding;
+    
+    // Centre de la zone de minimap dans le bandeau UI
+    const centerX = 70; 
+    const centerY = 50;
 
-    // Cadre pour la minimap
-    minimapGraphics.lineStyle(1, 0x444444);
-    minimapGraphics.strokeRect(startX - 2, startY - 2, (size + padding) * 10 + 4, (size + padding) * 10 + 4);
+    // Calcul de l'origine de la grille pour que la salle actuelle (roomX, roomY) soit au centre
+    const gridStartX = (centerX - size / 2) - (roomX * cellSize);
+    const gridStartY = (centerY - size / 2) - (roomY * cellSize);
 
     for (let y = 0; y < 10; y++) {
         for (let x = 0; x < 10; x++) {
@@ -796,7 +854,7 @@ function drawMinimap() {
 
                     minimapGraphics.fillStyle(color, 0.8);
                 }
-                minimapGraphics.fillRect(startX + x * (size + padding), startY + y * (size + padding), size, size);
+                minimapGraphics.fillRect(gridStartX + x * cellSize, gridStartY + y * cellSize, size, size);
             }
         }
     }
