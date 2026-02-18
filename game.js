@@ -168,148 +168,41 @@ function createMainMenu() {
 }
 
 function preload() {
-    // Création de textures placeholder dynamiques (Pixel Art simulé)
-    
-    // 1. Joueur : Spritesheet externe (player_sheet.png doit être dans le dossier du jeu)
+    /*
+    NOTE POUR VOUS :
+    Le code ci-dessous charge les images depuis le dossier /assets.
+    Vous devez créer ces fichiers .png vous-même avec un logiciel comme Piskel ou Aseprite.
+    */
+
+    // 1. Joueur (ne change pas)
     this.load.spritesheet('player', 'player_sheet.png', { frameWidth: 64, frameHeight: 64 });
 
-    // Outil graphique pour les autres textures générées
-    let bg = this.make.graphics({ x: 0, y: 0 });
+    // 2. Éléments du décor
+    this.load.spritesheet('floor_sheet', 'assets/floor_sheet.png', { frameWidth: 40, frameHeight: 40 }); // NOUVEAU : Spritesheet pour le sol
+    this.load.image('wall', 'assets/wall.png');
+    this.load.image('door', 'assets/door.png');
+    this.load.image('door_locked', 'assets/door_locked.png');
+    this.load.image('door_shop', 'assets/door_shop.png');
+    this.load.image('door_boss', 'assets/door_boss.png');
+    this.load.image('door_treasure', 'assets/door_treasure.png');
+    this.load.image('stairs', 'assets/stairs.png');
+    this.load.image('chest', 'assets/chest.png');
 
-    // 2. Ennemi (Carré Rouge)
-    bg.fillStyle(0xff3333, 1);
-    bg.fillRect(0, 0, 32, 32);
-    bg.generateTexture('enemy', 32, 32);
+    // 3. Ennemis et projectiles
+    this.load.image('enemy', 'assets/enemy_chaser.png');
+    this.load.image('enemy_shooter', 'assets/enemy_shooter.png');
+    this.load.image('boss', 'assets/boss.png');
+    this.load.image('bullet', 'assets/bullet.png');
+    this.load.image('enemy_bullet', 'assets/enemy_bullet.png');
+    this.load.image('boss_bullet', 'assets/boss_bullet.png');
 
-    // 3. Projectile (Petit rond jaune)
-    bg.clear();
-    bg.fillStyle(0xffff00, 1);
-    bg.fillCircle(8, 8, 6);
-    bg.generateTexture('bullet', 16, 16);
-
-    // 4. Mur (Gris clair)
-    bg.clear();
-    bg.fillStyle(0x888888, 1);
-    bg.fillRect(0, 0, 40, 40);
-    bg.generateTexture('wall', 40, 40);
-
-    // 5. Porte (Carré Vert foncé)
-    bg.clear();
-    bg.fillStyle(0x006600, 1);
-    bg.fillRect(0, 0, 40, 40);
-    bg.generateTexture('door', 40, 40);
-
-    // 6. Porte Verrouillée (Carré Rouge)
-    bg.clear();
-    bg.fillStyle(0xff0000, 1);
-    bg.fillRect(0, 0, 40, 40);
-    bg.generateTexture('door_locked', 40, 40);
-
-    // 7. Cœur (UI - Plein)
-    bg.clear();
-    bg.fillStyle(0xff0000, 1);
-    bg.fillCircle(10, 10, 8);
-    bg.generateTexture('heart', 20, 20);
-
-    // 8. Cœur vide (UI - Vide/Gris)
-    bg.clear();
-    bg.fillStyle(0x555555, 1);
-    bg.fillCircle(10, 10, 8);
-    bg.generateTexture('heart_empty', 20, 20);
-
-    // 9. Ennemi Tireur (Carré Violet)
-    bg.clear();
-    bg.fillStyle(0x9933ff, 1);
-    bg.fillRect(0, 0, 32, 32);
-    bg.generateTexture('enemy_shooter', 32, 32);
-
-    // 10. Projectile Ennemi (Petit rond orange)
-    bg.clear();
-    bg.fillStyle(0xff9900, 1);
-    bg.fillCircle(6, 6, 4);
-    bg.generateTexture('enemy_bullet', 12, 12);
-
-    // 11. Boss (Grand Carré Noir/Rouge)
-    bg.clear();
-    bg.fillStyle(0x000000, 1);
-    bg.fillRect(0, 0, 64, 64);
-    bg.lineStyle(4, 0xff0000, 1);
-    bg.strokeRect(0, 0, 64, 64);
-    bg.generateTexture('boss', 64, 64);
-
-    // 12. Projectile Boss (Grand rond rouge)
-    bg.fillStyle(0xff0000, 1);
-    bg.fillCircle(10, 10, 8);
-    bg.generateTexture('boss_bullet', 20, 20);
-
-    // 13. Pièce (Petit rond jaune doré)
-    bg.clear();
-    bg.fillStyle(0xffd700, 1);
-    bg.fillCircle(8, 8, 6);
-    bg.generateTexture('coin', 16, 16);
-
-    // 14. Cœur à ramasser (Similaire à l'UI mais en objet)
-    bg.clear();
-    bg.fillStyle(0xff0000, 1);
-    bg.fillCircle(8, 8, 6);
-    bg.generateTexture('pickup_heart', 16, 16);
-
-    // 15. Item Max HP (Carré Vert avec +)
-    bg.clear();
-    bg.fillStyle(0x00ff00, 1);
-    bg.fillRect(0, 0, 32, 32);
-    bg.lineStyle(4, 0xffffff, 1);
-    bg.beginPath();
-    bg.moveTo(16, 8);
-    bg.lineTo(16, 24);
-    bg.moveTo(8, 16);
-    bg.lineTo(24, 16);
-    bg.strokePath();
-    bg.generateTexture('item_maxhp', 32, 32);
-
-    // 16. Item Speed (Carré Bleu Cyan)
-    bg.clear();
-    bg.fillStyle(0x00ffff, 1);
-    bg.fillRect(0, 0, 32, 32);
-    bg.generateTexture('item_speed', 32, 32);
-
-    // 17. Escalier (Carré Bleu foncé avec lignes)
-    bg.clear();
-    bg.fillStyle(0x0000cc, 1);
-    bg.fillRect(0, 0, 40, 40);
-    bg.lineStyle(4, 0xaaaaaa, 1);
-    bg.beginPath();
-    bg.moveTo(5, 10); bg.lineTo(35, 10);
-    bg.moveTo(5, 20); bg.lineTo(35, 20);
-    bg.moveTo(5, 30); bg.lineTo(35, 30);
-    bg.strokePath();
-    bg.generateTexture('stairs', 40, 40);
-
-    // 18. Porte Shop (Jaune)
-    bg.clear();
-    bg.fillStyle(0xffff00, 1);
-    bg.fillRect(0, 0, 40, 40);
-    bg.generateTexture('door_shop', 40, 40);
-
-    // 19. Porte Boss (Rouge Sombre)
-    bg.clear();
-    bg.fillStyle(0x880000, 1);
-    bg.fillRect(0, 0, 40, 40);
-    bg.generateTexture('door_boss', 40, 40);
-
-    // 20. Porte Trésor (Orange/Or)
-    bg.clear();
-    bg.fillStyle(0xffaa00, 1);
-    bg.fillRect(0, 0, 40, 40);
-    bg.generateTexture('door_treasure', 40, 40);
-
-    // 21. Coffre au trésor (Carré Marron avec serrure dorée)
-    bg.clear();
-    bg.fillStyle(0x8b4513, 1);
-    bg.fillRect(0, 0, 32, 32);
-    bg.fillStyle(0xffd700, 1); // Serrure
-    bg.fillRect(12, 10, 8, 8);
-    bg.generateTexture('chest', 32, 32);
+    // 4. Objets et UI
+    this.load.image('coin', 'assets/coin.png');
+    this.load.image('pickup_heart', 'assets/pickup_heart.png');
+    this.load.image('heart', 'assets/heart_ui.png');
+    this.load.image('heart_empty', 'assets/heart_empty_ui.png');
+    this.load.image('item_maxhp', 'assets/item_maxhp.png');
+    this.load.image('item_speed', 'assets/item_speed.png');
 }
 
 function create() {
@@ -337,6 +230,18 @@ function create() {
     // Viewport: x=0, y=100, width=800, height=600
     this.cameras.main.setViewport(0, 100, 800, 600);
     this.cameras.main.setBackgroundColor('#1a1a1a');
+
+    // NOUVEAU : Sol texturé aléatoire
+    // On parcourt une grille et on place une tuile de sol aléatoire à chaque case.
+    const TILE_SIZE = 40; // Doit correspondre à la taille des frames de la spritesheet
+    for (let y = 0; y < 600; y += TILE_SIZE) {
+        for (let x = 0; x < 800; x += TILE_SIZE) {
+            // Choisit une frame aléatoire (0 à 15)
+            const frame = Phaser.Math.Between(0, 31);
+            // On ajoute (TILE_SIZE / 2) car l'origine de l'image est au centre
+            this.add.image(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 'floor_sheet', frame).setDepth(-1);
+        }
+    }
 
     // Lancer la scène d'interface en parallèle
     this.scene.launch('UIScene');
