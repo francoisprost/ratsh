@@ -19,7 +19,7 @@ const UIScene = {
 const config = {
     type: Phaser.AUTO,
     width: 800,
-    height: 700, // On augmente la hauteur pour inclure le bandeau
+    height: 740, // On augmente la hauteur pour inclure le bandeau et une salle paire
     backgroundColor: '#1a1a1a', // Fond gris foncé (sol de donjon)
     physics: {
         default: 'arcade',
@@ -180,11 +180,18 @@ function preload() {
     // 2. Éléments du décor
     this.load.spritesheet('floor_sheet', 'assets/floor_sheet.png', { frameWidth: 40, frameHeight: 40 }); // NOUVEAU : Spritesheet pour le sol
     this.load.image('wall', 'assets/wall.png');
-    this.load.image('door', 'assets/door.png');
-    this.load.image('door_locked', 'assets/door_locked.png');
-    this.load.image('door_shop', 'assets/door_shop.png');
-    this.load.image('door_boss', 'assets/door_boss.png');
-    this.load.image('door_treasure', 'assets/door_treasure.png');
+    this.load.image('wall_corner', 'assets/wall_corner.png'); // NOUVEAU : Coin de mur
+    
+    // Chargement des portes (4 types x 4 variations)
+    const doorTypes = ['', '_shop', '_boss', '_treasure'];
+    doorTypes.forEach(type => {
+        ['left', 'right'].forEach(side => {
+            ['locked', 'unlocked'].forEach(state => {
+                this.load.image(`door${type}_${side}_${state}`, `assets/door${type}_${side}_${state}.png`);
+            });
+        });
+    });
+
     this.load.image('stairs', 'assets/stairs.png');
     this.load.image('chest', 'assets/chest.png');
 
@@ -192,9 +199,9 @@ function preload() {
     this.load.image('enemy', 'assets/enemy_chaser.png');
     this.load.image('enemy_shooter', 'assets/enemy_shooter.png');
     this.load.image('boss', 'assets/boss.png');
-    this.load.image('bullet', 'assets/bullet.png');
     this.load.image('enemy_bullet', 'assets/enemy_bullet.png');
     this.load.image('boss_bullet', 'assets/boss_bullet.png');
+    this.load.spritesheet('bullet', 'assets/bullet_sheet.png', { frameWidth: 16, frameHeight: 16 }); // NOUVEAU : Spritesheet pour la balle
 
     // 4. Objets et UI
     this.load.image('coin', 'assets/coin.png');
@@ -221,20 +228,20 @@ function create() {
         runChildUpdate: true
     });
     bullets = this.physics.add.group({
-        classType: Phaser.Physics.Arcade.Image,
+        classType: Phaser.Physics.Arcade.Sprite, // Les balles sont maintenant des Sprites pour pouvoir être animées
         maxSize: 30,
         runChildUpdate: true
     });
     
     // Configuration de la caméra de JEU (Zone inférieure)
     // Viewport: x=0, y=100, width=800, height=600
-    this.cameras.main.setViewport(0, 100, 800, 600);
+    this.cameras.main.setViewport(0, 100, 800, 640);
     this.cameras.main.setBackgroundColor('#1a1a1a');
 
     // NOUVEAU : Sol texturé aléatoire
     // On parcourt une grille et on place une tuile de sol aléatoire à chaque case.
     const TILE_SIZE = 40; // Doit correspondre à la taille des frames de la spritesheet
-    for (let y = 0; y < 600; y += TILE_SIZE) {
+    for (let y = 0; y < 640; y += TILE_SIZE) {
         for (let x = 0; x < 800; x += TILE_SIZE) {
             // Choisit une frame aléatoire (0 à 15)
             const frame = Phaser.Math.Between(0, 31);
@@ -247,7 +254,7 @@ function create() {
     this.scene.launch('UIScene');
 
     // --- Game Over Screen ---
-    gameOverText = this.add.text(400, 300, 'GAME OVER\nCliquer pour recommencer', {
+    gameOverText = this.add.text(400, 320, 'GAME OVER\nCliquer pour recommencer', {
         fontSize: '40px',
         fill: '#ff0000',
         align: 'center',
@@ -267,7 +274,7 @@ function create() {
     generateDungeon();
 
     // --- Joueur ---
-    player = this.physics.add.sprite(400, 300, 'player');
+    player = this.physics.add.sprite(400, 320, 'player');
     
     // Ajustement de la hitbox : on garde un cœur de 40x40 (20*2) pour éviter de bloquer
     player.body.setSize(20, 20);
@@ -311,6 +318,14 @@ function create() {
     this.anims.create({ key: 'idle-left', frames: [{ key: 'player', frame: 5 }] });
     this.anims.create({ key: 'idle-right', frames: [{ key: 'player', frame: 9 }] });
     this.anims.create({ key: 'idle-up', frames: [{ key: 'player', frame: 13 }] });
+
+    // NOUVEAU : Animation de la balle
+    this.anims.create({
+        key: 'bullet_anim',
+        frames: this.anims.generateFrameNumbers('bullet', { start: 0, end: 7 }),
+        frameRate: 12,
+        repeat: -1
+    });
 
     // --- Chargement de la première salle ---
     loadRoom(this);
@@ -377,15 +392,19 @@ function create() {
             dungeon[roomY][roomX].cleared = true;
             // Déverrouiller les portes
             isRoomLocked = false;
-            doors.getChildren().forEach(door => door.setTexture(getDoorTexture(door.name)));
+            doors.getChildren().forEach(door => {
+                // Remplace _locked par _unlocked dans le nom de la texture actuelle
+                let newKey = door.texture.key.replace('_locked', '_unlocked');
+                door.setTexture(newKey);
+            });
             
             drawMinimap(); // Mettre à jour la carte (changement de couleur potentielle)
             
             if (dungeon[roomY][roomX].type === 'boss') {
-                stairs.create(400, 300, 'stairs');
+                stairs.create(400, 320, 'stairs');
                 treasureChest.create(400, 200, 'chest'); // Coffre de récompense
             } else {
-                spawnRoomReward(this, 400, 300); // Apparition potentielle d'un objet
+                spawnRoomReward(this, 400, 320); // Apparition potentielle d'un objet
             }
         }
         // Ici on pourrait ajouter un score ou une animation d'explosion
@@ -600,7 +619,7 @@ function loadRoom(scene) {
     if (dungeon[roomY][roomX].type === 'treasure') {
         dungeon[roomY][roomX].cleared = true; // Salle sûre
         if (!dungeon[roomY][roomX].treasureOpen) {
-            treasureChest.create(400, 300, 'chest');
+            treasureChest.create(400, 320, 'chest');
         }
     }
     
@@ -609,7 +628,7 @@ function loadRoom(scene) {
 
     // Faire réapparaître l'escalier si la salle du boss est nettoyée
     if (dungeon[roomY][roomX].type === 'boss' && dungeon[roomY][roomX].cleared) {
-        stairs.create(400, 300, 'stairs');
+        stairs.create(400, 320, 'stairs');
         if (!dungeon[roomY][roomX].treasureOpen) {
             treasureChest.create(400, 200, 'chest');
         }
@@ -625,50 +644,74 @@ function loadRoom(scene) {
     let hasWest = roomX > 0 && dungeon[roomY][roomX - 1].active;
     let hasEast = roomX < 9 && dungeon[roomY][roomX + 1].active;
 
-    // --- Construction des Murs et Portes ---
-    // Haut et Bas
-    for (let x = 0; x < 800; x += 40) {
-        let isCenter = (x >= 360 && x <= 400); // Zone centrale pour la porte
-        
+    // --- Construction des Murs, Portes et Coins ---
+
+    // 1. Coins
+    walls.create(20, 20, 'wall_corner').setAngle(0);       // Haut-gauche (par défaut)
+    walls.create(780, 20, 'wall_corner').setAngle(90);     // Haut-droite 
+    walls.create(780, 620, 'wall_corner').setAngle(180);   // Bas-droite
+    walls.create(20, 620, 'wall_corner').setAngle(270);    // Bas-gauche
+
+    // 2. Murs horizontaux (Haut et Bas) - On saute les coins (x=0 et x=760)
+    for (let x = 40; x < 760; x += 40) {
+        const isDoorZone = (x >= 360 && x <= 400);
+        const tileX = x + 20;
+
         // Mur du Haut
-        if (hasNorth && isCenter) {
-            let texture = isRoomLocked ? 'door_locked' : getDoorTexture('north');
-            let d = doors.create(x + 20, 20, texture);
+        if (hasNorth && isDoorZone) {
+            let base = getDoorTexture('north');
+            let state = isRoomLocked ? 'locked' : 'unlocked';
+            let side = (x === 360) ? 'left' : 'right'; // 360=Gauche, 400=Droite
+            let texture = `${base}_${side}_${state}`;
+            let d = doors.create(tileX, 20, texture);
             d.name = 'north';
         } else {
-            walls.create(x + 20, 20, 'wall');
+            walls.create(tileX, 20, 'wall').setAngle(0); // Mur du haut, pas de rotation
         }
 
         // Mur du Bas
-        if (hasSouth && isCenter) {
-            let texture = isRoomLocked ? 'door_locked' : getDoorTexture('south');
-            let d = doors.create(x + 20, 580, texture);
+        if (hasSouth && isDoorZone) {
+            let base = getDoorTexture('south');
+            let state = isRoomLocked ? 'locked' : 'unlocked';
+            let side = (x === 360) ? 'right' : 'left'; // Inversé car rotation 180°
+            let texture = `${base}_${side}_${state}`;
+            let d = doors.create(tileX, 620, texture);
+            d.setAngle(180);
             d.name = 'south';
         } else {
-            walls.create(x + 20, 580, 'wall');
+            walls.create(tileX, 620, 'wall').setAngle(180); // Mur du bas, rotation 180°
         }
     }
 
-    // Gauche et Droite
-    for (let y = 40; y < 560; y += 40) { // On évite les coins déjà faits
-        let isCenter = (y >= 260 && y <= 300);
+    // 3. Murs verticaux (Gauche et Droite) - On saute les coins (y=0 et y=560)
+    for (let y = 40; y < 600; y += 40) {
+        const isDoorZone = (y >= 280 && y <= 320);
+        const tileY = y + 20;
 
         // Mur de Gauche
-        if (hasWest && isCenter) {
-            let texture = isRoomLocked ? 'door_locked' : getDoorTexture('west');
-            let d = doors.create(20, y + 20, texture);
+        if (hasWest && isDoorZone) {
+            let base = getDoorTexture('west');
+            let state = isRoomLocked ? 'locked' : 'unlocked';
+            let side = (y === 280) ? 'right' : 'left'; // Inversé pour rotation -90°
+            let texture = `${base}_${side}_${state}`;
+            let d = doors.create(20, tileY, texture);
+            d.setAngle(-90);
             d.name = 'west';
         } else {
-            walls.create(20, y + 20, 'wall');
+            walls.create(20, tileY, 'wall').setAngle(-90); // Mur de gauche, rotation -90°
         }
 
         // Mur de Droite
-        if (hasEast && isCenter) {
-            let texture = isRoomLocked ? 'door_locked' : getDoorTexture('east');
-            let d = doors.create(780, y + 20, texture);
+        if (hasEast && isDoorZone) {
+            let base = getDoorTexture('east');
+            let state = isRoomLocked ? 'locked' : 'unlocked';
+            let side = (y === 280) ? 'left' : 'right'; // Normal pour rotation 90°
+            let texture = `${base}_${side}_${state}`;
+            let d = doors.create(780, tileY, texture);
+            d.setAngle(90);
             d.name = 'east';
         } else {
-            walls.create(780, y + 20, 'wall');
+            walls.create(780, tileY, 'wall').setAngle(90); // Mur de droite, rotation 90°
         }
     }
 
@@ -679,7 +722,8 @@ function loadRoom(scene) {
 
         if (roomType === 'boss') {
             // --- SPAWN BOSS ---
-            let boss = enemies.create(400, 300, 'boss');
+            let boss = enemies.create(400, 320, 'boss');
+            boss.setScale(2); // Taille doublée
             boss.setCollideWorldBounds(true);
             boss.setBounce(0.2);
             boss.setData('type', 'boss');
@@ -700,6 +744,7 @@ function loadRoom(scene) {
                 let texture = type === 'shooter' ? 'enemy_shooter' : 'enemy';
 
                 let enemy = enemies.create(ex, ey, texture);
+                enemy.setScale(2); // Taille doublée
                 enemy.setCollideWorldBounds(true);
                 enemy.setBounce(1);
                 enemy.setData('type', type); // On stocke le type dans l'objet
@@ -912,11 +957,11 @@ function changeRoom(direction, scene) {
 
     // Repositionner le joueur à l'opposé de la porte qu'il a prise
     if (direction === 'north') {
-        player.y = 530;
+        player.y = 570; // 640 - 70
     } else if (direction === 'south') {
         player.y = 70;
     } else if (direction === 'west') {
-        player.x = 730;
+        player.x = 730; // 800 - 70
     } else if (direction === 'east') {
         player.x = 70;
     }
@@ -1007,7 +1052,7 @@ function restartGame(scene) {
     updateHealthUI();
     generateDungeon(); // Nouveau donjon
     updateStatsUI();
-    player.setPosition(400, 300); // Retour au centre
+    player.setPosition(400, 320); // Retour au centre
     loadRoom(scene);
 }
 
@@ -1028,7 +1073,7 @@ function fireBullet(x, y, velocity) {
             let vx = Math.cos(angle) * speed;
             let vy = Math.sin(angle) * speed;
 
-            bullet.setTexture('bullet');
+            bullet.play('bullet_anim', true); // On joue l'animation
             bullet.fire(x, y, { x: vx, y: vy });
         }
     }
@@ -1069,7 +1114,7 @@ function fireBossPattern(boss, target, time) {
 }
 
 function spawnRoomReward(scene, x, y) {
-    if (Phaser.Math.Between(0, 100) > 50) { // 50% de chance d'avoir un objet
+    if (Phaser.Math.Between(0, 100) > 50) { // 50% de chance d'avoir un objet 
         let type = Phaser.Math.Between(0, 100) > 60 ? 'pickup_heart' : 'coin'; // 40% cœur, 60% pièce
         
         let data = { x: x, y: y, type: type, id: Date.now() };
@@ -1127,9 +1172,9 @@ function spawnShop(scene) {
     // Si les données du shop n'existent pas encore pour cette salle, on les crée
     if (!dungeon[roomY][roomX].shopData) {
         dungeon[roomY][roomX].shopData = [
-            { type: 'pickup_heart', price: 5, x: 300, y: 300, id: 1 },
-            { type: 'item_maxhp', price: 15, x: 400, y: 300, id: 2 },
-            { type: 'item_speed', price: 10, x: 500, y: 300, id: 3 }
+            { type: 'pickup_heart', price: 5, x: 300, y: 320, id: 1 },
+            { type: 'item_maxhp', price: 15, x: 400, y: 320, id: 2 },
+            { type: 'item_speed', price: 10, x: 500, y: 320, id: 3 }
         ];
     }
 
@@ -1254,7 +1299,7 @@ function getDoorTexture(direction) {
 
     if (tx < 0 || tx > 9 || ty < 0 || ty > 9) return 'door';
     let type = dungeon[ty][tx].type;
-    if (type === 'shop') return 'door_shop';
+    if (type === 'shop') return 'door_shop'; // Retourne la base du nom
     if (type === 'boss') return 'door_boss';
     if (type === 'treasure') return 'door_treasure';
     return 'door';
@@ -1262,6 +1307,13 @@ function getDoorTexture(direction) {
 
 // Extension de la classe Bullet pour gérer son cycle de vie
 Phaser.Physics.Arcade.Image.prototype.fire = function (x, y, velocity) {
+    this.setPosition(x, y);
+    this.setActive(true);
+    this.setVisible(true);
+    this.setVelocity(velocity.x, velocity.y);
+}
+
+Phaser.Physics.Arcade.Sprite.prototype.fire = function (x, y, velocity) {
     this.setPosition(x, y);
     this.setActive(true);
     this.setVisible(true);
