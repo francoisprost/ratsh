@@ -1330,3 +1330,4 @@ Phaser.Physics.Arcade.Sprite.prototype.fire = function (x, y, velocity) {
     this.setActive(true);
     this.setVisible(true);
     this.setVelocity(velocity.x, velocity.y);
+}
