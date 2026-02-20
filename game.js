@@ -193,7 +193,9 @@ function preload() {
     });
 
     this.load.image('stairs', 'assets/stairs.png');
-    this.load.image('chest', 'assets/chest.png');
+    this.load.image('chest_locked', 'assets/chest_locked.png');
+    this.load.image('chest_unlocked', 'assets/chest_unlocked.png');
+    this.load.spritesheet('chest_open_anim', 'assets/chest_open_sheet.png', { frameWidth: 64, frameHeight: 64 });
 
     // 3. Ennemis et projectiles
     this.load.image('enemy', 'assets/enemy_chaser.png');
@@ -327,6 +329,14 @@ function create() {
         repeat: -1
     });
 
+    // NOUVEAU : Animation du coffre
+    this.anims.create({
+        key: 'chest_open',
+        frames: this.anims.generateFrameNumbers('chest_open_anim', { start: 0, end: 5 }),
+        frameRate: 12,
+        repeat: 0
+    });
+
     // --- Chargement de la première salle ---
     loadRoom(this);
 
@@ -402,7 +412,7 @@ function create() {
             
             if (dungeon[roomY][roomX].type === 'boss') {
                 stairs.create(400, 320, 'stairs');
-                treasureChest.create(400, 200, 'chest'); // Coffre de récompense
+                treasureChest.create(400, 200, 'chest_locked'); // Coffre de récompense
             } else {
                 spawnRoomReward(this, 400, 320); // Apparition potentielle d'un objet
             }
@@ -618,9 +628,8 @@ function loadRoom(scene) {
     // Restaurer le coffre si c'est une salle trésor
     if (dungeon[roomY][roomX].type === 'treasure') {
         dungeon[roomY][roomX].cleared = true; // Salle sûre
-        if (!dungeon[roomY][roomX].treasureOpen) {
-            treasureChest.create(400, 320, 'chest');
-        }
+        let texture = dungeon[roomY][roomX].treasureOpen ? 'chest_unlocked' : 'chest_locked';
+        treasureChest.create(400, 320, texture);
     }
     
     // Déterminer si la salle doit être verrouillée (si elle n'est pas nettoyée)
@@ -629,9 +638,8 @@ function loadRoom(scene) {
     // Faire réapparaître l'escalier si la salle du boss est nettoyée
     if (dungeon[roomY][roomX].type === 'boss' && dungeon[roomY][roomX].cleared) {
         stairs.create(400, 320, 'stairs');
-        if (!dungeon[roomY][roomX].treasureOpen) {
-            treasureChest.create(400, 200, 'chest');
-        }
+        let texture = dungeon[roomY][roomX].treasureOpen ? 'chest_unlocked' : 'chest_locked';
+        treasureChest.create(400, 200, texture);
     }
 
     // Marquer la salle comme visitée et mettre à jour la minimap
@@ -1243,7 +1251,11 @@ function openTreasureChest(scene, chest) {
     if (dungeon[roomY][roomX].treasureOpen) return;
 
     dungeon[roomY][roomX].treasureOpen = true;
-    chest.destroy();
+    
+    chest.play('chest_open');
+    chest.once('animationcomplete', () => {
+        chest.setTexture('chest_unlocked');
+    });
 
     // Liste des améliorations possibles
     const upgrades = [
@@ -1318,4 +1330,3 @@ Phaser.Physics.Arcade.Sprite.prototype.fire = function (x, y, velocity) {
     this.setActive(true);
     this.setVisible(true);
     this.setVelocity(velocity.x, velocity.y);
-}
