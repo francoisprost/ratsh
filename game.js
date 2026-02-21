@@ -47,7 +47,8 @@ let playerDamage = 1; // Dégâts du joueur
 let projectileCount = 1; // Nombre de projectiles
 let playerSpeed = 200;
 const DEFAULT_SPEED = 200;
-const BULLET_SPEED = 400;
+const DEFAULT_BULLET_SPEED = 400;
+let bulletSpeed = DEFAULT_BULLET_SPEED;
 const ENEMY_SPEED = 80;
 let dungeon = []; // La grille du donjon
 let roomX = 5;    // Position actuelle X dans la grille
@@ -226,12 +227,12 @@ function create() {
     shopTexts = this.add.group();
     enemyBullets = this.physics.add.group({
         classType: Phaser.Physics.Arcade.Image,
-        maxSize: 50,
+        maxSize: 200, // Augmenté pour éviter la pénurie de balles
         runChildUpdate: true
     });
     bullets = this.physics.add.group({
         classType: Phaser.Physics.Arcade.Sprite, // Les balles sont maintenant des Sprites pour pouvoir être animées
-        maxSize: 30,
+        maxSize: 200, // Augmenté pour supporter une cadence élevée
         runChildUpdate: true
     });
     
@@ -359,17 +360,17 @@ function create() {
 
     // Collision Balle -> Mur (La balle disparait)
     this.physics.add.collider(bullets, walls, (bullet, wall) => {
-        bullet.destroy();
+        bullet.disableBody(true, true); // On désactive au lieu de détruire (Pooling)
     });
 
     // Collision Balle Ennemi -> Mur
     this.physics.add.collider(enemyBullets, walls, (bullet, wall) => {
-        bullet.destroy();
+        bullet.disableBody(true, true);
     });
 
     // Collision Balle -> Ennemi (Les deux disparaissent pour l'instant)
     this.physics.add.overlap(bullets, enemies, (bullet, enemy) => {
-        bullet.destroy();
+        bullet.disableBody(true, true);
         
         // Gestion des PV de l'ennemi
         let currentHp = enemy.getData('hp') - playerDamage;
@@ -395,6 +396,14 @@ function create() {
             let points = enemy.getData('type') === 'boss' ? 100 : 10;
             score += points;
             scoreText.setText('Score: ' + score);
+
+            // Drop de pièce (30% de chance)
+            if (Phaser.Math.Between(0, 100) < 15) {
+                // On utilise Date.now() + random pour un ID unique
+                let data = { x: enemy.x, y: enemy.y, type: 'coin', id: Date.now() + Math.random() };
+                dungeon[roomY][roomX].pickups.push(data);
+                createPickup(this, data);
+            }
         }
 
         // Vérification de fin de salle (si l'ennemi vient de mourir)
@@ -432,7 +441,7 @@ function create() {
 
     // Collision Balle Ennemi -> Joueur
     this.physics.add.overlap(player, enemyBullets, (player, bullet) => {
-        bullet.destroy();
+        bullet.disableBody(true, true);
         if (isGameOver) return;
         const time = this.time.now;
         if (time > lastDamageTime + DAMAGE_COOLDOWN) {
@@ -882,16 +891,16 @@ function update(time, delta) {
         let velocity = { x: 0, y: 0 };
 
         if (cursors.left.isDown) {
-            velocity.x = -BULLET_SPEED;
+            velocity.x = -bulletSpeed;
             fired = true;
         } else if (cursors.right.isDown) {
-            velocity.x = BULLET_SPEED;
+            velocity.x = bulletSpeed;
             fired = true;
         } else if (cursors.up.isDown) {
-            velocity.y = -BULLET_SPEED;
+            velocity.y = -bulletSpeed;
             fired = true;
         } else if (cursors.down.isDown) {
-            velocity.y = BULLET_SPEED;
+            velocity.y = bulletSpeed;
             fired = true;
         }
 
@@ -1047,6 +1056,7 @@ function restartGame(scene) {
     scene.physics.resume();
     maxHealth = DEFAULT_MAX_HEALTH;
     playerSpeed = DEFAULT_SPEED;
+    bulletSpeed = DEFAULT_BULLET_SPEED;
     playerDamage = 1;
     fireRate = 250;
     projectileCount = 1;
@@ -1091,12 +1101,8 @@ function fireEnemyBullet(enemy, target, time) {
     let bullet = enemyBullets.get();
     if (bullet) {
         bullet.setTexture('enemy_bullet');
-        bullet.setPosition(enemy.x, enemy.y);
-        bullet.setActive(true);
-        bullet.setVisible(true);
-        
         let angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, target.x, target.y);
-        bullet.setVelocity(Math.cos(angle) * 300, Math.sin(angle) * 300); // Vitesse 300
+        bullet.fire(enemy.x, enemy.y, { x: Math.cos(angle) * 300, y: Math.sin(angle) * 300 });
         
         enemy.setData('nextFire', time + 2000); // Tire toutes les 2 secondes
     }
@@ -1110,12 +1116,9 @@ function fireBossPattern(boss, target, time) {
         let bullet = enemyBullets.get();
         if (bullet) {
             bullet.setTexture('boss_bullet');
-            bullet.setPosition(boss.x, boss.y);
-            bullet.setActive(true);
-            bullet.setVisible(true);
             
             let angle = baseAngle + (i * 0.3); // Décalage angulaire
-            bullet.setVelocity(Math.cos(angle) * 250, Math.sin(angle) * 250);
+            bullet.fire(boss.x, boss.y, { x: Math.cos(angle) * 250, y: Math.sin(angle) * 250 });
         }
     }
     boss.setData('nextFire', time + 1500); // Tire toutes les 1.5 secondes
@@ -1263,7 +1266,8 @@ function openTreasureChest(scene, chest) {
         { name: "Vitesse d'attaque +", apply: () => fireRate = Math.max(50, fireRate - 30) }, // Min 50ms
         { name: "Vitesse +", apply: () => playerSpeed += 20 },
         { name: "Santé Max +1", apply: () => { maxHealth++; currentHealth = maxHealth; updateHealthUI(); } },
-        { name: "Projectile +1", apply: () => projectileCount++ }
+        { name: "Projectile +1", apply: () => projectileCount++ },
+        { name: "Vitesse de tir +", apply: () => bulletSpeed += 50 }
     ];
 
     // Choix aléatoire
@@ -1297,7 +1301,7 @@ function updateStatsUI() {
     statsText.setText([
         'Dégâts: ' + playerDamage + '  |  Tirs: ' + projectileCount,
         'Cadence: ' + fireRate + 'ms',
-        'Vitesse: ' + playerSpeed
+        'Vitesse: ' + playerSpeed + ' | Vit. Tir: ' + bulletSpeed
     ]);
 }
 
@@ -1319,15 +1323,11 @@ function getDoorTexture(direction) {
 
 // Extension de la classe Bullet pour gérer son cycle de vie
 Phaser.Physics.Arcade.Image.prototype.fire = function (x, y, velocity) {
-    this.setPosition(x, y);
-    this.setActive(true);
-    this.setVisible(true);
+    this.enableBody(true, x, y, true, true); // Réactive le corps physique et l'affichage
     this.setVelocity(velocity.x, velocity.y);
 }
 
 Phaser.Physics.Arcade.Sprite.prototype.fire = function (x, y, velocity) {
-    this.setPosition(x, y);
-    this.setActive(true);
-    this.setVisible(true);
+    this.enableBody(true, x, y, true, true); // Réactive le corps physique et l'affichage
     this.setVelocity(velocity.x, velocity.y);
 }
