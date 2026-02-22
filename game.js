@@ -169,13 +169,7 @@ function createMainMenu() {
 }
 
 function preload() {
-    /*
-    NOTE POUR VOUS :
-    Le code ci-dessous charge les images depuis le dossier /assets.
-    Vous devez créer ces fichiers .png vous-même avec un logiciel comme Piskel ou Aseprite.
-    */
-
-    // 1. Joueur (ne change pas)
+    // 1. Joueur
     this.load.spritesheet('player', 'player_sheet.png', { frameWidth: 64, frameHeight: 64 });
 
     // 2. Éléments du décor
