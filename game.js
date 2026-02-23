@@ -78,20 +78,9 @@ let stairs;
 let treasureChest; // Groupe pour le coffre
 
 function createMainMenu() {
-    this.cameras.main.setBackgroundColor('#000000');
-
-    // Titre
-    this.add.text(400, 200, 'RATSH', {
-        fontSize: '100px',
-        fill: '#ff0000',
-        fontStyle: 'bold',
-        stroke: '#ffffff',
-        strokeThickness: 2
-    }).setOrigin(0.5);
+    this.add.image(400, 370, 'main_menu_background').setOrigin(0.5);
 
     // --- Animation de fond ---
-
-    // On crée les animations de marche nécessaires pour le menu
     this.anims.create({
         key: 'walk-left',
         frames: this.anims.generateFrameNumbers('player', { start: 4, end: 7 }),
@@ -144,31 +133,60 @@ function createMainMenu() {
     // Lance la première animation
     spawnWalkingRat();
 
-    // Instructions
-    this.add.text(400, 350, 'ZQSD pour bouger\nFlèches pour tirer', {
-        fontSize: '24px',
-        fill: '#cccccc',
-        align: 'center'
+    // Visualisation des touches de mouvement (ZQSD)
+    let moveKeysBlock = this.add.text(400, 320, 'ZQSD pour bouger', {
+        fontFamily: '"Arial Black", Gadget, sans-serif',
+        fontSize: '28px',
+        fill: '#f5deb3', // Couleur "blé", pour s'accorder au fond
+        stroke: '#4a2d0f', // Contour marron foncé pour le contraste
+        strokeThickness: 6,
+        padding: { x: 15, y: 10 }
+    }).setOrigin(0.5);
+
+    // Visualisation des touches de tir (Flèches)
+    let shootKeysBlock = this.add.text(400, 390, '↑ ↓ ← → pour tirer', { // Utilisation de caractères Unicode pour les flèches
+        fontFamily: '"Arial Black", Gadget, sans-serif',
+        fontSize: '28px',
+        fill: '#f5deb3', // Couleur "blé", pour s'accorder au fond
+        stroke: '#4a2d0f', // Contour marron foncé pour le contraste
+        strokeThickness: 6,
+
+        padding: { x: 15, y: 10 }
     }).setOrigin(0.5);
 
     // Bouton Jouer
-    let playText = this.add.text(400, 500, 'CLIQUER POUR JOUER', {
-        fontSize: '32px',
-        fill: '#ffffff',
-        backgroundColor: '#333333',
-        padding: { x: 20, y: 10 }
+    let playText = this.add.text(400, 500, 'CLIQUER POUR JOUER', { // Le bouton reste à 500 pour ne pas chevaucher
+        fontFamily: '"Arial Black", Gadget, sans-serif', // Police épaisse
+        fontSize: '36px',
+        fill: '#f5deb3', // Couleur "blé", pour s'accorder au fond
+        stroke: '#4a2d0f', // Contour marron foncé pour le contraste
+        strokeThickness: 8,
+        fontStyle: 'bold'
     }).setOrigin(0.5);
 
     playText.setInteractive({ useHandCursor: true });
-    playText.on('pointerover', () => playText.setStyle({ fill: '#ffff00' }));
-    playText.on('pointerout', () => playText.setStyle({ fill: '#ffffff' }));
+    playText.on('pointerover', () => playText.setStyle({ fill: '#ffff00' })); // Jaune vif au survol
+    playText.on('pointerout', () => playText.setStyle({ fill: '#f5deb3' })); // Retour à la couleur de base
 
     playText.on('pointerdown', () => {
         this.scene.start('GameScene');
     });
+
+    // Animation de "pulsation" pour attirer l'oeil
+    this.tweens.add({
+        targets: playText,
+        scale: 1.05, // Grossit légèrement
+        duration: 700,
+        ease: 'Sine.easeInOut',
+        yoyo: true, // Fait l'animation en sens inverse pour revenir à la taille normale
+        repeat: -1 // Répète à l'infini
+    });
 }
 
 function preload() {
+    // 0. Menu
+    this.load.image('main_menu_background', 'assets/main_menu_background.png');
+
     // 1. Joueur
     this.load.spritesheet('player', 'player_sheet.png', { frameWidth: 64, frameHeight: 64 });
 
